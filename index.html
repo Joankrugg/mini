@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mini Patatap Ready-to-Play</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg1: #0f2027;
+      --bg2: #203a43;
+      --bg3: #2c5364;
+      --panel-bg: rgba(0, 0, 0, 0.4);
+      --accent: #ffd86f;
+      --text: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top, #111, #000);
+    }
+
+    body {
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .ui-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px;
+      z-index: 10;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      max-width: 420px;
+      padding: 10px 14px;
+      background: var(--panel-bg);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      pointer-events: auto;
+    }
+
+    .title {
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      font-size: 14px;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .subtitle {
+      font-size: 13px;
+      opacity: 0.85;
+    }
+
+    .badge {
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      opacity: 0.9;
+    }
+
+    .help {
+      margin-left: auto;
+      font-size: 11px;
+      opacity: 0.8;
+    }
+
+    .bottom-hints {
+      align-self: center;
+      text-align: center;
+      padding: 8px 16px;
+      background: var(--panel-bg);
+      border-radius: 999px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .keycaps {
+      display: inline-flex;
+      gap: 4px;
+    }
+
+    .keycap {
+      border-radius: 4px;
+      padding: 2px 6px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff4d4d;
+      box-shadow: 0 0 10px rgba(255, 77, 77, 0.8);
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .status-dot.ready {
+      background: #2ecc71;
+      box-shadow: 0 0 12px rgba(46, 204, 113, 0.9);
+    }
+
+    .big-key {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(64px, 15vw, 120px);
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #ffffff;
+      text-shadow:
+        0 0 20px rgba(255, 255, 255, 0.9),
+        0 0 40px rgba(255, 216, 111, 0.9);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+      z-index: 9;
+      letter-spacing: 0.05em;
+    }
+
+    .big-key.visible {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.05);
+    }
+
+    .loading-banner {
+      position: fixed;
+      inset: auto 50% 16px;
+      transform: translateX(-50%);
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.6);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 11;
+      backdrop-filter: blur(8px);
+    }
+
+    .loading-spinner {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: var(--accent);
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .top-bar {
+        max-width: 100%;
+      }
+      .subtitle {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Canvas pour les animations -->
+  <canvas id="visuals"></canvas>
+
+  <!-- UI overlay (titre, instructions) -->
+  <div class="ui-overlay">
+    <div class="top-bar">
+      <div>
+        <div class="title">Mini Patatap</div>
+        <div class="subtitle">Tape A–Z ou touche l’écran pour jouer sons & formes.</div>
+      </div>
+      <div class="badge">Ready-to-play</div>
+      <div class="help">Astuce&nbsp;: clique une fois pour autoriser l’audio 🎧</div>
+    </div>
+
+    <div class="bottom-hints">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Audio en attente d’un clic / touche…</span>
+      <div class="keycaps">
+        <div class="keycap">A-Z</div>
+        <div class="keycap">⌨</div>
+        <div class="keycap">👆 / 👆🏻</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lettre géante au centre -->
+  <div class="big-key" id="big-key">A</div>
+
+  <!-- Tone.js depuis CDN -->
+  <script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
+
+  <!-- Code principal -->
+  <script>
+    // --- Canvas setup ---
+    const canvas = document.getElementById('visuals');
+    const ctx = canvas.getContext('2d');
+    let W = canvas.width = window.innerWidth;
+    let H = canvas.height = window.innerHeight;
+
+    function resizeCanvas() {
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    // Fond animé léger
+    let bgHue = 200;
+
+    // --- UI elements ---
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const bigKeyEl = document.getElementById('big-key');
+
+    let audioReady = false;
+
+    // --- Tone.js instruments ---
+    const synth = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: "triangle" },
+      envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.6 }
+    }).toDestination();
+
+    const pluck = new Tone.PluckSynth({
+      attackNoise: 1.2,
+      dampening: 4000,
+      resonance: 0.7
+    }).toDestination();
+
+    const bass = new Tone.MonoSynth({
+      oscillator: { type: "square" },
+      filter: { Q: 1, type: "lowpass", rolloff: -24 },
+      envelope: { attack: 0.02, decay: 0.2, sustain: 0.2, release: 0.4 }
+    }).toDestination();
+
+    const kick = new Tone.MembraneSynth({
+      pitchDecay: 0.02,
+      octaves: 6,
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.2 }
+    }).toDestination();
+
+    const noise = new Tone.NoiseSynth({
+      noise: { type: "white" },
+      envelope: { attack: 0.001, decay: 0.15, sustain: 0 }
+    }).toDestination();
+
+    // --- Débloquer l'audio au premier geste utilisateur ---
+    async function unlockAudio() {
+      if (audioReady) return;
+      try {
+        await Tone.start();
+        audioReady = true;
+        statusDot.classList.add('ready');
+        statusText.textContent = 'Audio prêt ✔️ Tape A–Z ou touche l’écran.';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    window.addEventListener('pointerdown', unlockAudio, { once: false });
+    window.addEventListener('keydown', unlockAudio, { once: false });
+
+    // --- Mapping touches → sons + visuels ---
+    // Palette et formes par lettres
+    const keyConfig = {
+      a: { type: 'melody', note: 'C4', color: '#ff7675', shape: 'circle' },
+      b: { type: 'melody', note: 'D4', color: '#74b9ff', shape: 'polygon' },
+      c: { type: 'melody', note: 'E4', color: '#55efc4', shape: 'square' },
+      d: { type: 'melody', note: 'G4', color: '#ffeaa7', shape: 'ring' },
+      e: { type: 'melody', note: 'A4', color: '#fab1a0', shape: 'star' },
+      f: { type: 'melody', note: 'C5', color: '#fd79a8', shape: 'burst' },
+      g: { type: 'melody', note: 'D5', color: '#a29bfe', shape: 'circle' },
+      h: { type: 'melody', note: 'E5', color: '#00cec9', shape: 'polygon' },
+
+      i: { type: 'pluck', note: 'G4', color: '#81ecec', shape: 'ring' },
+      j: { type: 'pluck', note: 'A4', color: '#ffeaa7', shape: 'polygon' },
+      k: { type: 'pluck', note: 'B4', color: '#fdcb6e', shape: 'burst' },
+      l: { type: 'pluck', note: 'C5', color: '#6c5ce7', shape: 'circle' },
+      m: { type: 'pluck', note: 'D5', color: '#00b894', shape: 'square' },
+      n: { type: 'pluck', note: 'E5', color: '#e84393', shape: 'star' },
+
+      o: { type: 'bass', note: 'C2', color: '#d63031', shape: 'ring' },
+      p: { type: 'bass', note: 'D2', color: '#0984e3', shape: 'burst' },
+      q: { type: 'bass', note: 'E2', color: '#6c5ce7', shape: 'circle' },
+      r: { type: 'bass', note: 'G2', color: '#00cec9', shape: 'square' },
+      s: { type: 'bass', note: 'A2', color: '#e17055', shape: 'polygon' },
+      t: { type: 'bass', note: 'B1', color: '#fd79a8', shape: 'ring' },
+
+      u: { type: 'kick', color: '#ffeaa7', shape: 'pulse' },
+      v: { type: 'kick', color: '#fab1a0', shape: 'pulse' },
+      w: { type: 'noise', color: '#ffffff', shape: 'lines' },
+      x: { type: 'noise', color: '#f1f2f6', shape: 'dust' },
+      y: { type: 'kick', color: '#fdcb6e', shape: 'pulse' },
+      z: { type: 'noise', color: '#dfe6e9', shape: 'burst' }
+    };
+
+    // --- Gestion des formes / particules ---
+    const shapes = [];
+
+    function spawnShape(key, centerX, centerY) {
+      const cfg = keyConfig[key];
+      if (!cfg) return;
+
+      const x = centerX ?? (Math.random() * W);
+      const y = centerY ?? (Math.random() * H);
+
+      const baseSize = 40 + Math.random() * 60;
+      const life = 0;
+      const maxLife = 60 + Math.random() * 40; // frames
+
+      shapes.push({
+        x,
+        y,
+        size: baseSize,
+        life,
+        maxLife,
+        color: cfg.color,
+        shape: cfg.shape,
+        rotation: Math.random() * Math.PI * 2,
+        spin: (Math.random() - 0.5) * 0.1,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
+      });
+
+      // quelques particules supplémentaires
+      const extraCount = 6;
+      for (let i = 0; i < extraCount; i++) {
+        shapes.push({
+          x,
+          y,
+          size: 8 + Math.random() * 18,
+          life: 0,
+          maxLife: 40 + Math.random() * 20,
+          color: cfg.color,
+          shape: i % 2 === 0 ? 'dot' : 'mini-line',
+          rotation: Math.random() * Math.PI * 2,
+          spin: (Math.random() - 0.5) * 0.2,
+          vx: (Math.random() - 0.5) * 5,
+          vy: (Math.random() - 0.5) * 5
+        });
+      }
+    }
+
+    function hexToRGBA(hex, alpha) {
+      const c = hex.replace('#', '');
+      const bigint = parseInt(c, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    function drawShape(s) {
+      const lifeRatio = s.life / s.maxLife;
+      const alpha = 1 - lifeRatio;
+      const size = s.size * (0.5 + lifeRatio * 1.2);
+
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.rotation);
+
+      ctx.fillStyle = hexToRGBA(s.color, alpha * 0.9);
+      ctx.strokeStyle = hexToRGBA(s.color, alpha);
+      ctx.lineWidth = 2 + (1 - lifeRatio) * 3;
+
+      switch (s.shape) {
+        case 'circle':
+          ctx.beginPath();
+          ctx.arc(0, 0, size, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        case 'ring':
+          ctx.beginPath();
+          ctx.arc(0, 0, size, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        case 'square':
+          ctx.beginPath();
+          ctx.rect(-size, -size, size * 2, size * 2);
+          ctx.stroke();
+          break;
+        case 'polygon':
+          ctx.beginPath();
+          const sides = 5;
+          for (let i = 0; i < sides; i++) {
+            const ang = (i / sides) * Math.PI * 2;
+            const rx = Math.cos(ang) * size;
+            const ry = Math.sin(ang) * size;
+            if (i === 0) ctx.moveTo(rx, ry);
+            else ctx.lineTo(rx, ry);
+          }
+          ctx.closePath();
+          ctx.stroke();
+          break;
+        case 'burst':
+          for (let i = 0; i < 8; i++) {
+            const ang = (i / 8) * Math.PI * 2;
+            const r1 = size * 0.3;
+            const r2 = size;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(ang) * r1, Math.sin(ang) * r1);
+            ctx.lineTo(Math.cos(ang) * r2, Math.sin(ang) * r2);
+            ctx.stroke();
+          }
+          break;
+        case 'star':
+          ctx.beginPath();
+          const spikes = 5;
+          const outerRadius = size;
+          const innerRadius = size * 0.4;
+          for (let i = 0; i < spikes * 2; i++) {
+            const r = i % 2 === 0 ? outerRadius : innerRadius;
+            const ang = (i * Math.PI) / spikes;
+            const sx = Math.cos(ang) * r;
+            const sy = Math.sin(ang) * r;
+            if (i === 0) ctx.moveTo(sx, sy);
+            else ctx.lineTo(sx, sy);
+          }
+          ctx.closePath();
+          ctx.stroke();
+          break;
+        case 'pulse':
+          ctx.beginPath();
+          ctx.arc(0, 0, size, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(0, 0, size * 0.5, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        case 'lines':
+          for (let i = 0; i < 10; i++) {
+            const ang = Math.random() * Math.PI * 2;
+            const r = size * (0.3 + Math.random());
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+            ctx.stroke();
+          }
+          break;
+        case 'dust':
+          for (let i = 0; i < 30; i++) {
+            const ang = Math.random() * Math.PI * 2;
+            const r = size * Math.random();
+            const px = Math.cos(ang) * r;
+            const py = Math.sin(ang) * r;
+            ctx.beginPath();
+            ctx.arc(px, py, 1 + Math.random() * 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          break;
+        case 'dot':
+          ctx.beginPath();
+          ctx.arc(0, 0, size * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        case 'mini-line':
+          ctx.beginPath();
+          ctx.moveTo(-size * 0.8, 0);
+          ctx.lineTo(size * 0.8, 0);
+          ctx.stroke();
+          break;
+        default:
+          ctx.beginPath();
+          ctx.arc(0, 0, size, 0, Math.PI * 2);
+          ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    // --- Animation loop ---
+    function animate() {
+      requestAnimationFrame(animate);
+
+      bgHue = (bgHue + 0.1) % 360;
+      ctx.fillStyle = `rgba(0, 0, 0, 0.18)`;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+
+      for (let i = shapes.length - 1; i >= 0; i--) {
+        const s = shapes[i];
+        s.life++;
+        s.x += s.vx;
+        s.y += s.vy;
+        s.rotation += s.spin;
+
+        drawShape(s);
+
+        if (s.life > s.maxLife) {
+          shapes.splice(i, 1);
+        }
+      }
+
+      ctx.restore();
+    }
+
+    animate();
+
+    // --- Son + visuels à partir d'une touche ---
+    function triggerFromKey(rawKey, pointerX, pointerY) {
+      const key = rawKey.toLowerCase();
+      if (!keyConfig[key]) return;
+
+      // centre de l'écran ou position du clic
+      const x = pointerX ?? (W * 0.5 + (Math.random() - 0.5) * (W * 0.5));
+      const y = pointerY ?? (H * 0.5 + (Math.random() - 0.5) * (H * 0.5));
+
+      const cfg = keyConfig[key];
+
+      // son
+      if (audioReady) {
+        switch (cfg.type) {
+          case 'melody':
+            synth.triggerAttackRelease(cfg.note, '8n');
+            break;
+          case 'pluck':
+            pluck.triggerAttackRelease(cfg.note, '8n');
+            break;
+          case 'bass':
+            bass.triggerAttackRelease(cfg.note, '8n');
+            break;
+          case 'kick':
+            kick.triggerAttackRelease('C1', '8n');
+            break;
+          case 'noise':
+            noise.triggerAttackRelease('16n');
+            break;
+        }
+      }
+
+      // visuel
+      spawnShape(key, x, y);
+      flashBigKey(key);
+    }
+
+    // --- Lettre géante au centre ---
+    let bigKeyTimeout = null;
+    function flashBigKey(key) {
+      bigKeyEl.textContent = key.toUpperCase();
+      bigKeyEl.classList.add('visible');
+
+      if (bigKeyTimeout) clearTimeout(bigKeyTimeout);
+      bigKeyTimeout = setTimeout(() => {
+        bigKeyEl.classList.remove('visible');
+      }, 150);
+    }
+
+    // --- Events clavier & pointer ---
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return; // évite le flood quand la touche est maintenue
+      const key = e.key.toLowerCase();
+      if (keyConfig[key]) {
+        e.preventDefault();
+        triggerFromKey(key);
+      }
+    });
+
+    // pointer = click ou touch
+    window.addEventListener('pointerdown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // si ce n'est pas une lettre, on prend une lettre aléatoire
+      const keys = Object.keys(keyConfig);
+      const randomKey = keys[Math.floor(Math.random() * keys.length)];
+      triggerFromKey(randomKey, x, y);
+    });
+  </script>
+</body>
+</html>
